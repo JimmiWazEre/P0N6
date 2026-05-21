@@ -23,6 +23,7 @@ pygame-ce docs      https://pyga.me/docs/
 import pygame
 from os.path import dirname, abspath, join
 from os.path import expanduser
+from random import uniform, choice
 BASE_DIR = dirname(abspath(__file__))
 
 # -------------------------------------------------------------
@@ -49,14 +50,11 @@ class GameState():
         self.paddle_sprites.empty()
         self.ball_sprites.empty()
 
-    def state(self):
+    def state(self, dt, direction):
         if self.current_state == "splash":
-            game.current_state = "point_start"
             self.point_start = self.current_time
+            self.current_state = "point_start"
         elif self.current_state == "point_start":
-            player.draw()
-            ai.draw()
-            score.draw()
             if pygame.time.get_ticks() - self.point_start >= 0000 and pygame.time.get_ticks() - self.point_start < 1000:
                 text_surf = font.render("3", True, (240, 240, 240))
                 text_rect = text_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 50))
@@ -78,9 +76,12 @@ class GameState():
                 window.blit(text_surf, text_rect)
                 # play beeeeeeeeeeeep
             else:
+                # launch the ball
                 game.current_state = "in_play"
         elif self.current_state == "in_play":
-            #consequence
+            player.update(dt, direction)
+            ai.update(dt)
+            score.update(dt)
         elif self.current_state == "point_scored":
             #consequence
         elif self.current_state == "paused":
@@ -101,39 +102,46 @@ class GameState():
 # sprite classes
 
 class PlayerPaddle(pygame.sprite.Sprite):
-    def __init__(self, groups):
-        super().__init__(groups)
-        pass
+    def __init__(self, *groups):
+        super().__init__(*groups)
+        self.speed = 150
 
-    def draw(self):
-        pass
-
-    def input(self, event):
-        pass
+    def update(self, dt, direction):
+        self.rect.center += self.speed * direction * dt
 
 class AiPaddle(pygame.sprite.Sprite):
-    def __init__(self, groups):
-        super().__init__(groups)
+    def __init__(self, *groups):
+        super().__init__(*groups)
         pass
 
-    def draw(self):
-        pass
+    def update(self, dt):
+        self.rect.center += self.velocity * dt
 
 class Ball(pygame.sprite.Sprite):
-    def __init__(self, groups):
-        super().__init__(groups)
-        pass
+    def __init__(self, *groups):
+        super().__init__(*groups)
+        self.image = pygame.Surface((15, 15)) # create a blank 15x15 canvas
+        self.image.fill("white") # paint it white - this is the visible ball
+        self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)) # get a rect from the surface, centered on screen - this is the ball's position
+        self.speed = None
+        self.velocity = None
 
-    def draw(self):
-        pass
+    def launch(self):
+        self.rect.center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)
+        self.speed = 100
+        self.velocity = pygame.Vector2(choice([-1, 1]), uniform(-1.5, 1.5)) * self.speed # random left or right, slight random vertical angle
+
+    def update(self, dt):
+        self.rect.center += self.velocity * dt # move the ball each frame - pygame redraws self.image at self.rect.center automatically via the sprite group
 
 class ScoreTracker(pygame.sprite.Sprite):
     def __init__(self, groups):
         super().__init__(groups)
         pass
 
-    def draw(self):
+    def update(self, dt):
         pass
+
 
 # -------------------------------------------------------------
 # functions
@@ -165,11 +173,15 @@ def collisions():
 def update_game(dt):
     pass
 
-def input_handling(event):
-    if event.type == pygame.KEYDOWN and game.current_state == "splash": # if any key is pressed from the splsh screen
-        game.state()
-    elif (event.type == pygame.KEYDOWN and event.key == pygame.K_q) or event.type == pygame.QUIT: # if q is pressed, or the window is 'x'ed out
+def input_handling(event, dt):
+    keys = pygame.key.get_pressed()
+    if event.type == pygame.KEYDOWN and game.current_state == "splash":
+        game.state(dt)
+    elif event.key == pygame.K_q or event.type == pygame.QUIT:
         game.quit()
+    if event.type == pygame.KEYDOWN and event.key == pygame.Y_UP:
+        direction = int(keys[pygame.K_DOWN]) - int(keys[pygame.K_UP])
+        game.state(dt, direction)
 
 # -------------------------------------------------------------
 # setup
@@ -202,10 +214,10 @@ font = pygame.font.Font(join(BASE_DIR, "PressStart2P-Regular.ttf"), 20)
 # pre-loop class initialisations
 # -------------------------------------------------------------
 
-player = PlayerPaddle()
-ai = AiPaddle()
-score = ScoreTracker()
-ball = Ball()
+player = PlayerPaddle(game.all_sprites, game.paddle_sprites)
+ai = AiPaddle(game.all_sprites, game.paddle_sprites)
+score = ScoreTracker(game.all_sprites)
+ball = Ball(game.all_sprites, game.ball_sprites)
 
 # -------------------------------------------------------------
 # game loop
@@ -216,12 +228,14 @@ while game.app_running:
     game.current_time = pygame.time.get_ticks()
 
     for event in pygame.event.get(): # if input events happen (keyboard, mouse etc)
-        input_handling(event)
+        input_handling(event, dt)
 
     if game.current_state == "splash":
         draw_splash()
-    if game.current_state == "point_start":
-        game.state()
+    elif game.current_state == "point_start":
+        game.state(dt)
+    elif game.current_state == "in_play":
+        game.state(dt)
     elif game.current_state == "match_end":
         draw_match_end()
     else:
