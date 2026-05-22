@@ -147,13 +147,15 @@ class AiPaddle(pygame.sprite.Sprite):
         self.image.fill("white")
         self.rect = self.image.get_frect(center=(WINDOW_WIDTH - 100, WINDOW_HEIGHT / 2))
         self.speed = 500
+        self.var_speed = 500
         self.mask = pygame.mask.from_surface(self.image)
 
     def update(self, dt):
         diff = game.ball.rect.centery - self.rect.centery
         if abs(diff) > 3:
+            self.var_speed = min(abs(diff), self.speed) + 400
             self.direction = 1 if diff > 0 else -1
-            self.velocity = self.direction * self.speed
+            self.velocity = self.direction * self.var_speed
             self.rect.centery += self.velocity * dt
         self.rect.clamp_ip(pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT))
 
