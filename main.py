@@ -41,8 +41,8 @@ class GameState():
         self.all_sprites = pygame.sprite.Group()
         self.paddle_sprites = pygame.sprite.Group()
         self.ball_sprites = pygame.sprite.Group()
-        self.player = PlayerPaddle(self.all_sprites, self.paddle_sprites)
-        self.ai = AiPaddle(self.all_sprites, self.paddle_sprites)
+        self.player = None
+        self.ai = None
         self.score = ScoreTracker(self.all_sprites)
 
     def reset(self):
@@ -59,6 +59,10 @@ class GameState():
             self.point_start = self.current_time
             self.current_state = "point_start"
         elif self.current_state == "point_start":
+            if self.player:
+                self.player.kill()
+            if self.ai:
+                self.ai.kill()
             if pygame.time.get_ticks() - self.point_start >= 0000 and pygame.time.get_ticks() - self.point_start < 1000:
                 text_surf = font.render("3", True, (240, 240, 240))
                 text_rect = text_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 100))
@@ -81,6 +85,8 @@ class GameState():
                 # play beeeeeeeeeeeep
             else:
                 self.ball = Ball(game.all_sprites, game.ball_sprites)
+                self.ai = AiPaddle(game.all_sprites, game.paddle_sprites)
+                self.player = PlayerPaddle(game.all_sprites, game.paddle_sprites)
                 self.ball.launch()
                 game.current_state = "in_play"
         elif self.current_state == "in_play":
@@ -127,7 +133,7 @@ class PlayerPaddle(pygame.sprite.Sprite):
         self.direction = int(keys[pygame.K_DOWN]) - int(keys[pygame.K_UP])
         self.velocity = self.direction * self.speed
         self.rect.centery += self.velocity * dt
-        self.speed = 300
+        self.speed = 500
         self.velocity = None
         self.direction = None
 
@@ -137,7 +143,7 @@ class AiPaddle(pygame.sprite.Sprite):
         self.image = pygame.Surface((20, 100))
         self.image.fill("white")
         self.rect = self.image.get_frect(center=(WINDOW_WIDTH - 100, WINDOW_HEIGHT / 2))
-        self.speed = 300
+        self.speed = 500
         self.mask = pygame.mask.from_surface(self.image)
 
     def update(self, dt):
@@ -152,6 +158,7 @@ class Ball(pygame.sprite.Sprite):
         self.image.fill("white") # paint it white - this is the visible ball
         self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)) # get a rect from the surface, centered on screen - this is the ball's position
         self.speed = None
+        self.speed_multiplier = 1
         self.velocity = None
         self.mask = pygame.mask.from_surface(self.image)
 
@@ -167,7 +174,7 @@ class Ball(pygame.sprite.Sprite):
         elif self.rect.top <= 0:
             self.velocity.y *= -1
             self.rect.top = 0
-        self.rect.center += self.velocity * dt
+        self.rect.center += self.velocity  * game.ball.speed_multiplier * dt
 
         if game.ball.rect.left <= 0:
             # point AI
@@ -221,19 +228,18 @@ def collisions():
                 game.ball.rect.right = i.rect.left
                 game.ball.velocity.x *= -1
                 game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
+                game.ball.speed_multiplier += 0.1
             elif game.ball.velocity.x < 0:
                 game.ball.rect.left = i.rect.right
                 game.ball.velocity.x *= -1
                 game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
+                game.ball.speed_multiplier += 0.1
             elif game.ball.velocity.y > 0:
                 game.ball.rect.bottom = i.rect.top
                 game.ball.velocity.y *= -1
             elif game.ball.velocity.y < 0:
                 game.ball.rect.top = i.rect.bottom
                 game.ball.velocity.y *= -1
-
-
-
 
 def update_game(dt):
     pass
