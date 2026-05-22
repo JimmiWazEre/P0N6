@@ -1,7 +1,7 @@
 """
 
 =============================================================
-P0N6
+P0N6 FL1P!
 =============================================================
 
 -------------------------------------------------------------
@@ -67,22 +67,22 @@ class GameState():
                 text_surf = font.render("3", True, (240, 240, 240))
                 text_rect = text_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 100))
                 window.blit(text_surf, text_rect)
-                # play beep
+                one_sound.play()
             elif pygame.time.get_ticks() - self.point_start >= 1000 and pygame.time.get_ticks() - self.point_start < 2000:
                 text_surf = font.render("2", True, (240, 240, 240))
                 text_rect = text_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 100))
                 window.blit(text_surf, text_rect)
-                # play beep
+                two_sound.play()
             elif pygame.time.get_ticks() - self.point_start >= 2000 and pygame.time.get_ticks() - self.point_start < 3000:
                 text_surf = font.render("1", True, (240, 240, 240))
                 text_rect = text_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 100))
                 window.blit(text_surf, text_rect)
-                # play beep
+                three_sound.play()
             elif pygame.time.get_ticks() - self.point_start >= 3000 and pygame.time.get_ticks() - self.point_start < 4000:
                 text_surf = font.render("GO!", True, (240, 240, 240))
                 text_rect = text_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 100))
                 window.blit(text_surf, text_rect)
-                # play beeeeeeeeeeeep
+                GO_sound.play()
             else:
                 self.ball = Ball(game.all_sprites, game.ball_sprites)
                 self.ai = AiPaddle(game.all_sprites, game.paddle_sprites)
@@ -229,17 +229,21 @@ def collisions():
                 game.ball.velocity.x *= -1
                 game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
                 game.ball.speed_multiplier += 0.1
+                beep_sound.play()
             elif game.ball.velocity.x < 0:
                 game.ball.rect.left = i.rect.right
                 game.ball.velocity.x *= -1
                 game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
                 game.ball.speed_multiplier += 0.1
+                beep_sound.play()
             elif game.ball.velocity.y > 0:
                 game.ball.rect.bottom = i.rect.top
                 game.ball.velocity.y *= -1
+                beep_sound.play()
             elif game.ball.velocity.y < 0:
                 game.ball.rect.top = i.rect.bottom
                 game.ball.velocity.y *= -1
+                beep_sound.play()
 
 def update_game(dt):
     pass
@@ -277,7 +281,21 @@ splash_surf = pygame.image.load(join(BASE_DIR, "images", "splash.png")).convert(
 font = pygame.font.Font(join(BASE_DIR, "PressStart2P-Regular.ttf"), 20)
 
 # sounds
-
+one_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "1.wav"))
+one_sound.set_volume(0.1)
+two_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "2.wav"))
+two_sound.set_volume(0.1)
+three_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "3.wav"))
+three_sound.set_volume(0.1)
+GO_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "GO.wav"))
+GO_sound.set_volume(0.1)
+beep_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "beeep.ogg"))
+beep_sound.set_volume(0.1)
+beeeeeep_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "peeeeeep.ogg"))
+beeeeeep_sound.set_volume(0.1)
+game_music = pygame.mixer.Sound(join(BASE_DIR, "audio", "two_left_socks.ogg"))
+game_music.set_volume(0.1)
+game_music.play(loops=-1)
 # -------------------------------------------------------------
 # game loop
 # -------------------------------------------------------------
