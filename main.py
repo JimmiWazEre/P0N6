@@ -37,7 +37,7 @@ class GameState():
         self.current_time = None
         self.point_start = None
         self.ball = None
-        self.score = {"player": 0, "ai": 0}
+        self.cur_score = 0
         self.all_sprites = pygame.sprite.Group()
         self.paddle_sprites = pygame.sprite.Group()
         self.ball_sprites = pygame.sprite.Group()
@@ -49,7 +49,7 @@ class GameState():
         self.app_running = True
         self.current_state = "point_start"
         self.current_time = 0
-        self.score = {"player": 0, "ai": 0}
+        self.cur_score = 0
         self.all_sprites.empty()
         self.paddle_sprites.empty()
         self.ball_sprites.empty()
@@ -58,7 +58,9 @@ class GameState():
         if self.current_state == "splash":
             self.point_start = self.current_time
             self.current_state = "point_start"
+            self.score = ScoreTracker(game.all_sprites)
         elif self.current_state == "point_start":
+            self.cur_score = 0
             if self.player:
                 self.player.kill()
             if self.ai:
@@ -95,9 +97,9 @@ class GameState():
             self.score.update(dt)
             self.ball.update(dt)
             collisions()
-        elif self.current_state == "point_scored":
-            #consequence
-            pass
+        # elif self.current_state == "point_scored":
+        #     #consequence
+        #     pass
         elif self.current_state == "paused":
             #consequence
             pass
@@ -136,6 +138,7 @@ class PlayerPaddle(pygame.sprite.Sprite):
         self.speed = 500
         self.velocity = None
         self.direction = None
+        self.rect.clamp_ip(pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT))
 
 class AiPaddle(pygame.sprite.Sprite):
     def __init__(self, *groups):
@@ -147,9 +150,12 @@ class AiPaddle(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
 
     def update(self, dt):
-        self.direction = 1 if game.ball.rect.centery > self.rect.centery else -1
-        self.velocity = self.direction * self.speed
-        self.rect.centery += self.velocity * dt
+        diff = game.ball.rect.centery - self.rect.centery
+        if abs(diff) > 3:
+            self.direction = 1 if diff > 0 else -1
+            self.velocity = self.direction * self.speed
+            self.rect.centery += self.velocity * dt
+        self.rect.clamp_ip(pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT))
 
 class Ball(pygame.sprite.Sprite):
     def __init__(self, *groups):
@@ -176,13 +182,7 @@ class Ball(pygame.sprite.Sprite):
             self.rect.top = 0
         self.rect.center += self.velocity  * game.ball.speed_multiplier * dt
 
-        if game.ball.rect.left <= 0:
-            # point AI
-            self.kill()
-            game.point_start = game.current_time
-            game.current_state = "point_start"
-        elif game.ball.rect.right >= WINDOW_WIDTH:
-            # point player
+        if game.ball.rect.left <= 0 or game.ball.rect.left >= WINDOW_WIDTH:
             self.kill()
             game.point_start = game.current_time
             game.current_state = "point_start"
@@ -194,7 +194,10 @@ class ScoreTracker(pygame.sprite.Sprite):
         self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, 30))
 
     def update(self, dt):
-        pass
+        text_surf = font.render(str(f"SCORE: {game.cur_score}"), True, (240, 240, 240))
+        text_rect = text_surf.get_frect(midbottom = (WINDOW_WIDTH / 4, WINDOW_HEIGHT - 50))
+        window.blit(text_surf, text_rect)
+
 
 # -------------------------------------------------------------
 # functions
@@ -228,14 +231,16 @@ def collisions():
                 game.ball.rect.right = i.rect.left
                 game.ball.velocity.x *= -1
                 game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
-                game.ball.speed_multiplier += 0.1
+                game.ball.speed_multiplier += 0.05
                 beep_sound.play()
+                game.cur_score += 1
             elif game.ball.velocity.x < 0:
                 game.ball.rect.left = i.rect.right
                 game.ball.velocity.x *= -1
                 game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
-                game.ball.speed_multiplier += 0.1
+                game.ball.speed_multiplier += 0.05
                 beep_sound.play()
+                game.cur_score += 1
             elif game.ball.velocity.y > 0:
                 game.ball.rect.bottom = i.rect.top
                 game.ball.velocity.y *= -1
@@ -282,20 +287,21 @@ font = pygame.font.Font(join(BASE_DIR, "PressStart2P-Regular.ttf"), 20)
 
 # sounds
 one_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "1.wav"))
-one_sound.set_volume(0.1)
+one_sound.set_volume(0.2)
 two_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "2.wav"))
-two_sound.set_volume(0.1)
+two_sound.set_volume(0.2)
 three_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "3.wav"))
-three_sound.set_volume(0.1)
+three_sound.set_volume(0.2)
 GO_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "GO.wav"))
-GO_sound.set_volume(0.1)
+GO_sound.set_volume(0.3)
 beep_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "beeep.ogg"))
 beep_sound.set_volume(0.1)
 beeeeeep_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "peeeeeep.ogg"))
 beeeeeep_sound.set_volume(0.1)
 game_music = pygame.mixer.Sound(join(BASE_DIR, "audio", "two_left_socks.ogg"))
-game_music.set_volume(0.1)
+game_music.set_volume(0.2)
 game_music.play(loops=-1)
+
 # -------------------------------------------------------------
 # game loop
 # -------------------------------------------------------------
