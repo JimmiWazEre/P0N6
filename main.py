@@ -88,7 +88,7 @@ class GameState():
             self.ai.update(dt)
             self.score.update(dt)
             self.ball.update(dt)
-            collisions(dt)
+            collisions()
         elif self.current_state == "point_scored":
             #consequence
             pass
@@ -120,6 +120,7 @@ class PlayerPaddle(pygame.sprite.Sprite):
         self.speed = 300
         self.velocity = None
         self.direction = None
+        self.mask = pygame.mask.from_surface(self.image)
 
     def update(self, dt):
         keys = pygame.key.get_pressed()
@@ -137,6 +138,7 @@ class AiPaddle(pygame.sprite.Sprite):
         self.image.fill("white")
         self.rect = self.image.get_frect(center=(WINDOW_WIDTH - 100, WINDOW_HEIGHT / 2))
         self.speed = 300
+        self.mask = pygame.mask.from_surface(self.image)
 
     def update(self, dt):
         self.direction = 1 if game.ball.rect.centery > self.rect.centery else -1
@@ -151,11 +153,12 @@ class Ball(pygame.sprite.Sprite):
         self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)) # get a rect from the surface, centered on screen - this is the ball's position
         self.speed = None
         self.velocity = None
+        self.mask = pygame.mask.from_surface(self.image)
 
     def launch(self):
         self.rect.center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)
-        self.speed = 400
-        self.velocity = pygame.Vector2(choice([-0.5, 0.5]), uniform(-1.5, 1.5)) * self.speed # random left or right, slight random vertical angle
+        self.speed = 1000
+        self.velocity = pygame.Vector2(choice([-0.5, 0.5]), uniform(-0.5, 0.5)) * self.speed # random left or right, slight random vertical angle
 
     def update(self, dt):
         if self.rect.bottom >= WINDOW_HEIGHT:
@@ -211,7 +214,26 @@ def draw_game(dt):
     game.all_sprites.draw(window)
 
 def collisions():
-    pass
+    collision_sprites = pygame.sprite.spritecollide(game.ball, game.paddle_sprites, False, pygame.sprite.collide_mask)
+    if collision_sprites:
+        for i in collision_sprites:
+            if game.ball.velocity.x > 0:
+                game.ball.rect.right = i.rect.left
+                game.ball.velocity.x *= -1
+                game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
+            elif game.ball.velocity.x < 0:
+                game.ball.rect.left = i.rect.right
+                game.ball.velocity.x *= -1
+                game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
+            elif game.ball.velocity.y > 0:
+                game.ball.rect.bottom = i.rect.top
+                game.ball.velocity.y *= -1
+            elif game.ball.velocity.y < 0:
+                game.ball.rect.top = i.rect.bottom
+                game.ball.velocity.y *= -1
+
+
+
 
 def update_game(dt):
     pass
