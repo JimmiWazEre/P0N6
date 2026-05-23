@@ -3,19 +3,20 @@
 =============================================================
 P0N6 FL1P!
 =============================================================
-Original Pong is booooooooooring. P0N6 FL1P! turns the game
-away from being about beating a dumb opponent, and forces you
-to work with with the AI to keep the longest rally possible.
+Original Pong is boring. P0N6 FL1P! flips the objective:
+instead of beating a dumb AI, you work WITH it to keep the
+longest rally possible.
 
-The AI's stupidity isn't something to exploit to easily 
-win any more, it's something you have to compensate for to 
-keep the rally going!
+The AI's limitations are something to compensate for. Set up 
+good returns, control your angles, and keep the rally alive 
+as long as you can.
+
+The ball speeds up with every hit. How long can you last?
 
 -------------------------------------------------------------
 CONTROLS
 -------------------------------------------------------------
 Arrow keys      Move paddle
-Space           Launch ball
 ESC             Pause / unpause
 R               Restart (game over screen)
 Q               Quit
@@ -28,12 +29,11 @@ pygame-ce docs      https://pyga.me/docs/
 """
 
 import pygame
-from os.path import dirname, abspath, join, expanduser
+from os.path import dirname, abspath, join
 from random import uniform, choice
-import json
 
-SCORES_FILE = join(expanduser("~"), ".p0n6_fl1p_scores.json")
-MAX_ENTRIES = 10
+from modules.leaderboard import load_scores, insert_high_score, display_leaderboard, enter_name
+
 BASE_DIR = dirname(abspath(__file__))
 
 # -------------------------------------------------------------
@@ -47,86 +47,69 @@ class GameState():
         self.current_state = "splash"
         self.previous_state = None
         self.current_time = None
-        # gameplay
-        self.point_start = None
-        self.last_countdown = None
-        self.cur_score = 0
-        self.final_score = 0
-        # sprites
+
+        # leaderboard - persists across resets
+        self.new_score_index = None
+        self.scores = load_scores()
+
+        # sprite groups - persists across resets
         self.all_sprites = pygame.sprite.Group()
         self.paddle_sprites = pygame.sprite.Group()
         self.ball_sprites = pygame.sprite.Group()
-        self.ball = None
-        self.player = None
-        self.ai = None
-        # leaderboard
-        self.new_score_index = None
-        self.entering_name = False
-        self.pending_name = ""
-        self.scores = load_scores()
+
+        # initialise game state
+        self.reset()
 
     def reset(self):
-        # app
-        self.app_running = True
-        self.current_state = "point_start"
         # gameplay
         self.cur_score = 0
         self.final_score = 0
         self.last_countdown = None
         self.point_start = pygame.time.get_ticks()
+
         # leaderboard
         self.entering_name = False
         self.pending_name = ""
+
         # sprites
         self.all_sprites.empty()
         self.paddle_sprites.empty()
         self.ball_sprites.empty()
-        self.score = ScoreTracker(game.all_sprites)
+        self.ball = None
+        self.player = None
+        self.ai = None
+        self.score = ScoreTracker(self.all_sprites)
 
     def state(self, dt):
+        # splash state active
         if self.current_state == "splash":
             self.point_start = self.current_time
             self.current_state = "point_start"
-            self.score = ScoreTracker(game.all_sprites)
+
+        # point_start state active
         elif self.current_state == "point_start":
             if self.player:
                 self.player.kill()
             if self.ai:
                 self.ai.kill()
-            elapsed = pygame.time.get_ticks() - self.point_start
-            prev_flag = None
-            for start, text, sound, flag in countdown:
-                if elapsed >= start and elapsed < start + 1000:
-                    text_surf = font_large.render(text, True, (240, 240, 240))
-                    text_rect = text_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 100))
-                    window.blit(text_surf, text_rect)
-                    if self.last_countdown == prev_flag:
-                        sound.play()
-                        self.last_countdown = flag
-                    break
-                prev_flag = flag
-            else:
-                self.ball = Ball(game.all_sprites, game.ball_sprites)
-                self.ai = AiPaddle(game.all_sprites, game.paddle_sprites)
-                self.player = PlayerPaddle(game.all_sprites, game.paddle_sprites)
-                self.ball.launch()
-                game.current_state = "in_play"
+            handle_point_start()
+
+        # in_play state active
         elif self.current_state == "in_play":
             self.player.update(dt)
             self.ai.update(dt)
             self.score.update()
             self.ball.update(dt)
-            collisions()
+            handle_collisions()
+
+        # game_over state active
         elif self.current_state == "game_over":
-            window.fill("black")
-            display_leaderboard()  
+            display_leaderboard(game, font, window, WINDOW_WIDTH, WINDOW_HEIGHT)
             prompt_surf = font.render("Press R to play again, or Q to quit", True, (240, 240, 240))
             prompt_rect = prompt_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 150))
             show_prompt = (pygame.time.get_ticks() // 500) % 2 == 0
-            if show_prompt == True and game.entering_name == False:
-                window.blit(prompt_surf, prompt_rect)  
-        elif self.current_state == "paused":
-            pass
+            if show_prompt and not self.entering_name:
+                window.blit(prompt_surf, prompt_rect)
 
 # sprite classes
 
@@ -200,7 +183,7 @@ class Ball(pygame.sprite.Sprite):
             game.final_score = game.cur_score
             game.cur_score = 0
             game.current_state = "game_over"
-            check_high_score()
+            insert_high_score(game)
 
 class ScoreTracker(pygame.sprite.Sprite):
     def __init__(self, groups):
@@ -214,13 +197,14 @@ class ScoreTracker(pygame.sprite.Sprite):
         window.blit(text_surf, text_rect)
 
 # -------------------------------------------------------------
-# functions
+# draw functions
 # -------------------------------------------------------------
 
 def draw_splash():
     # the background image
     scaled_splash = pygame.transform.scale(splash_surf, (WINDOW_WIDTH, WINDOW_HEIGHT))
     window.blit(scaled_splash, (0, 0))
+
     # start game instructions
     prompt_surf = font.render("Press any key", True, (240, 240, 240))
     prompt_rect = prompt_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 50))
@@ -238,13 +222,18 @@ def draw_background():
         pygame.draw.rect(window, "white", pygame.Rect(x, y, 2, dash_height))
         y += dash_height + gap_height
 
-def draw_game(dt):
+def draw_sprites():
     game.all_sprites.draw(window)
 
-def collisions():
+# -------------------------------------------------------------
+# game functions
+# -------------------------------------------------------------
+
+def handle_collisions():
     collision_sprites = pygame.sprite.spritecollide(game.ball, game.paddle_sprites, False, pygame.sprite.collide_mask)
     if collision_sprites:
         for i in collision_sprites:
+            # ball moving right - hitting face of AI paddle
             if game.ball.velocity.x > 0:
                 game.ball.rect.right = i.rect.left
                 game.ball.velocity.x *= -1
@@ -252,6 +241,8 @@ def collisions():
                 game.ball.speed_multiplier += 0.05
                 beep_sound.play()
                 game.cur_score += 1
+
+            # ball moving left - hitting face of player paddle
             elif game.ball.velocity.x < 0:
                 game.ball.rect.left = i.rect.right
                 game.ball.velocity.x *= -1
@@ -259,25 +250,36 @@ def collisions():
                 game.ball.speed_multiplier += 0.05
                 beep_sound.play()
                 game.cur_score += 1
+
+            # ball moving down - hitting top edge of a paddle
             elif game.ball.velocity.y > 0:
                 game.ball.rect.bottom = i.rect.top
                 game.ball.velocity.y *= -1
                 beep_sound.play()
+
+            # ball moving up - hitting bottom edge of a paddle
             elif game.ball.velocity.y < 0:
                 game.ball.rect.top = i.rect.bottom
                 game.ball.velocity.y *= -1
                 beep_sound.play()
 
-def input_handling(event, dt):
+def handle_input(event, dt):
+    # splash state - any key pressed
     if event.type == pygame.KEYDOWN and game.current_state == "splash":
         game.state(dt)
+
+    # Q or window close - quit (unless a prior state has intercepted the keypress)
     elif (event.type == pygame.KEYDOWN and event.key == pygame.K_q) or event.type == pygame.QUIT:
         game.app_running = False
+
+    # game_over state - enter name, then restart game
     elif event.type == pygame.KEYDOWN and game.current_state == "game_over":
         if game.entering_name:
-            enter_name(event)
+            enter_name(event, game)
         elif event.key == pygame.K_r:
             game.reset()
+    
+    # ESC pressed - pause/unpause (checked independently of other conditions)
     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
         if not game.current_state == "paused":
             game.previous_state = game.current_state
@@ -285,58 +287,32 @@ def input_handling(event, dt):
         else:
             game.current_state = game.previous_state
 
-def enter_name(event):
-    if game.entering_name:
-        if event.key == pygame.K_BACKSPACE:
-            game.pending_name = game.pending_name[:-1]
-        elif len(game.pending_name) < 3 and event.unicode.isalpha():
-            game.pending_name += event.unicode.upper()
-        game.scores[game.new_score_index]["name"] = game.pending_name.ljust(3, "_")
-        if len(game.pending_name) == 3:
-            save_scores(game.scores)
-            game.entering_name = False
+def handle_point_start():
+    elapsed = pygame.time.get_ticks() - game.point_start
+    prev_flag = None
 
-def load_scores():
-    try:
-        with open(SCORES_FILE, "r") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except:
-        return []
+    # run countdown
+    for start, text, sound, flag in countdown:
+        if elapsed >= start and elapsed < start + 1000:
+            text_surf = font_large.render(text, True, (240, 240, 240))
+            text_rect = text_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 100))
+            window.blit(text_surf, text_rect)
+            if game.last_countdown == prev_flag:
+                sound.play()
+                game.last_countdown = flag
+            break
+        prev_flag = flag
+    
+    # set up for in_play state
+    else:
+        game.ball = Ball(game.all_sprites, game.ball_sprites)
+        game.ai = AiPaddle(game.all_sprites, game.paddle_sprites)
+        game.player = PlayerPaddle(game.all_sprites, game.paddle_sprites)
+        game.ball.launch()
+        game.current_state = "in_play"
 
-def save_scores(scores):
-    with open(SCORES_FILE, "w") as f:
-        json.dump(scores, f)
-
-def check_high_score():
-    if len(game.scores) < MAX_ENTRIES or game.final_score > game.scores[-1]["score"]:
-        game.scores.append({"name": "___", "score": game.final_score})
-        game.scores = sorted(game.scores, key=lambda x: x["score"], reverse=True)[:MAX_ENTRIES]
-        game.new_score_index = next(i for i, e in enumerate(game.scores) if e["name"] == "___")
-        game.entering_name = True
-
-def display_leaderboard():
-    for i, entry in enumerate(game.scores):
-        name = entry["name"]
-        text = f"{i+1:02}  {name:<3}  {entry['score']:>6}"
-        text_surf = font.render(text, True, (240, 240, 240))
-        text_rect = text_surf.get_frect(midleft=(WINDOW_WIDTH / 2 - 150, 120 + i * 35))
-        window.blit(text_surf, text_rect)
-
-    if game.entering_name:
-        show_cursor = (pygame.time.get_ticks() // 500) % 2 == 0
-        chars = list(game.scores[game.new_score_index]["name"])
-        cursor_pos = len(game.pending_name)
-        if not show_cursor:
-            chars[cursor_pos] = " "
-        name = "".join(chars)
-        text = f"{game.new_score_index+1:02}  {name:<3}  {game.scores[game.new_score_index]['score']:>6}"
-        text_surf = font.render(text, True, (240, 240, 240))
-        text_rect = text_surf.get_frect(midleft=(WINDOW_WIDTH / 2 - 150, 120 + game.new_score_index * 35))
-        window.blit(text_surf, text_rect)
-        prompt_surf = font.render("ENTER YOUR INITIALS", True, (240, 240, 240))
-        prompt_rect = prompt_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 150))
-        window.blit(prompt_surf, prompt_rect)
+    # for/else: runs only if the loop completed without hitting a break
+    # meaning all countdown entries have been passed - transition to in_play
 
 # -------------------------------------------------------------
 # setup
@@ -396,24 +372,22 @@ while game.app_running:
     window.fill("black")
 
     for event in pygame.event.get(): # if input events happen (keyboard, mouse etc)
-        input_handling(event, dt)
+        handle_input(event, dt)
 
     if game.current_state == "splash":
         draw_splash()
     elif game.current_state == "point_start":
         game.state(dt)
-        draw_game(dt)
+        draw_sprites()
     elif game.current_state == "in_play":
         game.state(dt)
-        draw_game(dt)
+        draw_sprites()
         draw_background()
     elif game.current_state == "paused":
-        draw_game(dt)
+        draw_sprites()
         draw_background()
     elif game.current_state == "game_over":
         game.state(dt)
-    else:
-        draw_game(dt)
 
     pygame.display.update()
 
