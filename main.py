@@ -29,12 +29,30 @@ pygame-ce docs      https://pyga.me/docs/
 """
 
 import pygame
-from os.path import dirname, abspath, join
+from os.path import dirname, abspath
 from random import uniform, choice
 
 from modules.leaderboard import load_scores, insert_high_score, display_leaderboard, enter_name
+from modules.powerup import spawn_powerups, handle_powerup_collisions
 
 BASE_DIR = dirname(abspath(__file__))
+
+# setup
+pygame.init()
+WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 720
+window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), vsync=1)
+pygame.display.set_caption("P0N6 FL1P!")
+
+# assets
+from modules.assets import init_assets
+init_assets()
+from modules.assets import (
+    splash_surf,
+    font, font_large,
+    one_sound, two_sound, three_sound, GO_sound,
+    beep_sound, game_music
+)
+game_music.play(loops=-1)
 
 # -------------------------------------------------------------
 # classes
@@ -56,6 +74,10 @@ class GameState():
         self.all_sprites = pygame.sprite.Group()
         self.paddle_sprites = pygame.sprite.Group()
         self.ball_sprites = pygame.sprite.Group()
+        self.powerup_sprites = pygame.sprite.Group()
+
+        # powerups
+        self.powerup = None
 
         # initialise game state
         self.reset()
@@ -75,10 +97,20 @@ class GameState():
         self.all_sprites.empty()
         self.paddle_sprites.empty()
         self.ball_sprites.empty()
+        self.powerup_sprites.empty()
         self.ball = None
         self.player = None
         self.ai = None
         self.score = ScoreTracker(self.all_sprites)
+        self.paddle_len = 20
+
+    def rebuild_paddles(self):
+        if self.player:
+            self.player.kill()
+        if self.ai:
+            self.ai.kill()
+        self.player = PlayerPaddle(self, self.all_sprites, self.paddle_sprites)
+        self.ai = AiPaddle(self, self.all_sprites, self.paddle_sprites)
 
     def state(self, dt):
         # splash state active
@@ -114,9 +146,9 @@ class GameState():
 # sprite classes
 
 class PlayerPaddle(pygame.sprite.Sprite):
-    def __init__(self, *groups):
+    def __init__(self, game, *groups):
         super().__init__(*groups)
-        self.image = pygame.Surface((20, 100))
+        self.image = pygame.Surface((20, game.paddle_len))
         self.image.fill("white")
         self.rect = self.image.get_frect(center=(100, WINDOW_HEIGHT / 2))
         self.speed = 300
@@ -135,9 +167,9 @@ class PlayerPaddle(pygame.sprite.Sprite):
         self.rect.clamp_ip(clamp)
 
 class AiPaddle(pygame.sprite.Sprite):
-    def __init__(self, *groups):
+    def __init__(self, game, *groups):
         super().__init__(*groups)
-        self.image = pygame.Surface((20, 100))
+        self.image = pygame.Surface((20, game.paddle_len))
         self.image.fill("white")
         self.rect = self.image.get_frect(center=(WINDOW_WIDTH - 100, WINDOW_HEIGHT / 2))
         self.speed = 500
@@ -241,6 +273,8 @@ def handle_collisions():
                 game.ball.speed_multiplier += 0.05
                 beep_sound.play()
                 game.cur_score += 1
+                if game.cur_score % 5 == 0:
+                    spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
 
             # ball moving left - hitting face of player paddle
             elif game.ball.velocity.x < 0:
@@ -250,6 +284,8 @@ def handle_collisions():
                 game.ball.speed_multiplier += 0.05
                 beep_sound.play()
                 game.cur_score += 1
+                if game.cur_score % 5 == 0:
+                    spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
 
             # ball moving down - hitting top edge of a paddle
             elif game.ball.velocity.y > 0:
@@ -306,52 +342,13 @@ def handle_point_start():
     # set up for in_play state
     else:
         game.ball = Ball(game.all_sprites, game.ball_sprites)
-        game.ai = AiPaddle(game.all_sprites, game.paddle_sprites)
-        game.player = PlayerPaddle(game.all_sprites, game.paddle_sprites)
+        game.ai = AiPaddle(game, game.all_sprites, game.paddle_sprites)
+        game.player = PlayerPaddle(game, game.all_sprites, game.paddle_sprites)
         game.ball.launch()
         game.current_state = "in_play"
 
     # for/else: runs only if the loop completed without hitting a break
     # meaning all countdown entries have been passed - transition to in_play
-
-# -------------------------------------------------------------
-# setup
-# -------------------------------------------------------------
-
-pygame.init()
-
-# window
-WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 720
-window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), vsync = 1)
-pygame.display.set_caption("P0N6 FL1P!")
-
-# -------------------------------------------------------------
-# assets
-# -------------------------------------------------------------
-
-# images
-splash_surf = pygame.image.load(join(BASE_DIR, "images", "splash.png")).convert()
-
-# fonts
-font = pygame.font.Font(join(BASE_DIR, "PressStart2P-Regular.ttf"), 20)
-font_large = pygame.font.Font(join(BASE_DIR, "PressStart2P-Regular.ttf"), 60)
-
-# sounds
-one_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "1.wav"))
-one_sound.set_volume(0.5)
-two_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "2.wav"))
-two_sound.set_volume(0.5)
-three_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "3.wav"))
-three_sound.set_volume(0.5)
-GO_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "GO.wav"))
-GO_sound.set_volume(0.8)
-beep_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "beeep.ogg"))
-beep_sound.set_volume(0.1)
-beeeeeep_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "peeeeeep.ogg"))
-beeeeeep_sound.set_volume(0.1)
-game_music = pygame.mixer.Sound(join(BASE_DIR, "audio", "two_left_socks.ogg"))
-game_music.set_volume(0.2)
-game_music.play(loops=-1)
 
 # -------------------------------------------------------------
 # game running
