@@ -60,6 +60,7 @@ class GameState():
         self.player = None
         self.ai = None
         # leaderboard
+        self.new_score_index = None
         self.entering_name = False
         self.pending_name = ""
         self.scores = load_scores()
@@ -272,7 +273,6 @@ def input_handling(event, dt):
         game.state(dt)
     elif (event.type == pygame.KEYDOWN and event.key == pygame.K_q) or event.type == pygame.QUIT:
         game.app_running = False
-        pygame.quit()
     elif event.type == pygame.KEYDOWN and game.current_state == "game_over":
         if game.entering_name:
             enter_name(event)
@@ -291,10 +291,7 @@ def enter_name(event):
             game.pending_name = game.pending_name[:-1]
         elif len(game.pending_name) < 3 and event.unicode.isalpha():
             game.pending_name += event.unicode.upper()
-        for entry in game.scores:
-            if "_" in entry["name"]:
-                entry["name"] = game.pending_name.ljust(3, "_")
-                break
+        game.scores[game.new_score_index]["name"] = game.pending_name.ljust(3, "_")
         if len(game.pending_name) == 3:
             save_scores(game.scores)
             game.entering_name = False
@@ -312,29 +309,31 @@ def save_scores(scores):
         json.dump(scores, f)
 
 def check_high_score():
-    scores = game.scores
-    if len(scores) < MAX_ENTRIES or game.final_score > scores[-1]["score"]:
-        scores.append({"name": "___", "score": game.final_score})
-        scores = sorted(scores, key=lambda x: x["score"], reverse=True)
-        scores = scores[:MAX_ENTRIES]
+    if len(game.scores) < MAX_ENTRIES or game.final_score > game.scores[-1]["score"]:
+        game.scores.append({"name": "___", "score": game.final_score})
+        game.scores = sorted(game.scores, key=lambda x: x["score"], reverse=True)[:MAX_ENTRIES]
+        game.new_score_index = next(i for i, e in enumerate(game.scores) if e["name"] == "___")
         game.entering_name = True
-        game.scores = scores
 
 def display_leaderboard():
-    show_cursor = (pygame.time.get_ticks() // 500) % 2 == 0
     for i, entry in enumerate(game.scores):
         name = entry["name"]
-        if game.entering_name and "_" in name:
-            chars = list(name)
-            cursor_pos = len(game.pending_name)
-            if not show_cursor:
-                chars[cursor_pos] = " "
-            name = "".join(chars)
         text = f"{i+1:02}  {name:<3}  {entry['score']:>6}"
         text_surf = font.render(text, True, (240, 240, 240))
         text_rect = text_surf.get_frect(midleft=(WINDOW_WIDTH / 2 - 150, 120 + i * 35))
         window.blit(text_surf, text_rect)
+
     if game.entering_name:
+        show_cursor = (pygame.time.get_ticks() // 500) % 2 == 0
+        chars = list(game.scores[game.new_score_index]["name"])
+        cursor_pos = len(game.pending_name)
+        if not show_cursor:
+            chars[cursor_pos] = " "
+        name = "".join(chars)
+        text = f"{game.new_score_index+1:02}  {name:<3}  {game.scores[game.new_score_index]['score']:>6}"
+        text_surf = font.render(text, True, (240, 240, 240))
+        text_rect = text_surf.get_frect(midleft=(WINDOW_WIDTH / 2 - 150, 120 + game.new_score_index * 35))
+        window.blit(text_surf, text_rect)
         prompt_surf = font.render("ENTER YOUR INITIALS", True, (240, 240, 240))
         prompt_rect = prompt_surf.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 150))
         window.blit(prompt_surf, prompt_rect)
@@ -348,7 +347,7 @@ pygame.init()
 # window
 WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 720
 window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), vsync = 1)
-pygame.display.set_caption("P0N6")
+pygame.display.set_caption("P0N6 FL1P!")
 
 # -------------------------------------------------------------
 # assets
