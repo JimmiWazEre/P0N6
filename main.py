@@ -62,7 +62,6 @@ class GameState():
     def __init__(self):
         # app
         self.app_running = True
-        self.current_state = "splash"
         self.previous_state = None
         self.current_time = None
 
@@ -84,6 +83,7 @@ class GameState():
 
         # initialise game state
         self.reset()
+        self.current_state = "splash"
 
     def reset(self):
         # gameplay
@@ -323,7 +323,7 @@ def handle_collisions():
                 game.ball.rect.right = i.rect.left
                 game.ball.velocity.x *= -1
                 game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
-                game.ball.speed_multiplier += 0.05
+                game.ball.speed_multiplier += 0.02
                 beep_sound.play()
                 game.cur_score += 1
                 if not game.active_powerup:
@@ -336,7 +336,7 @@ def handle_collisions():
                 game.ball.rect.left = i.rect.right
                 game.ball.velocity.x *= -1
                 game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
-                game.ball.speed_multiplier += 0.05
+                game.ball.speed_multiplier += 0.02
                 beep_sound.play()
                 game.cur_score += 1
                 if not game.active_powerup:

@@ -140,12 +140,8 @@ def spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT):
     available = [t for t in [SlowBall, BigPaddle, Shield, BigBall] if t not in excluded]
     if not available:
         return
-    for _ in range(10):
-        offset = randint(50, 80) * choice([-1, 1])
-        pos = (WINDOW_WIDTH // 2 + offset, randint(50, WINDOW_HEIGHT - 50))
-        candidate_rect = pygame.Rect(pos[0] - 20, pos[1] - 20, 40, 40)
-        if not any(candidate_rect.colliderect(s.rect) for s in game.powerup_sprites):
-            break
+    offset = randint(50, 80) * choice([-1, 1])
+    pos = (WINDOW_WIDTH // 2 + offset, randint(50, WINDOW_HEIGHT - 50))
     powerup_type = choice(available)
     game.powerup = powerup_type(pos, game.all_sprites, game.powerup_sprites)
 
