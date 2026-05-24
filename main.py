@@ -30,7 +30,7 @@ pygame-ce docs      https://pyga.me/docs/
 
 import pygame
 from os.path import dirname, abspath
-from random import uniform, choice
+from random import uniform, choice, randint
 
 from modules.leaderboard import load_scores, insert_high_score, display_leaderboard, enter_name
 from modules.powerup import spawn_powerups, handle_powerup_collisions
@@ -151,6 +151,7 @@ class GameState():
             handle_collisions()
             for p in list(game.active_powerup):
                 p.update(game, dt)
+            game.powerup_sprites.update(game, dt)
 
         # game_over state active
         elif self.current_state == "game_over":
@@ -287,6 +288,25 @@ def draw_background():
         pygame.draw.rect(window, "white", pygame.Rect(x, y, 2, dash_height))
         y += dash_height + gap_height
 
+def draw_powerup_timers():
+    if not game.active_powerup:
+        return
+    border_left = 25
+    border_right = WINDOW_WIDTH - 25
+    padding = 10
+    total_width = border_right - border_left - (padding * 2)
+    bar_width = (total_width - (padding * 3)) // 4
+    bar_height = 10
+    y = padding
+    for idx, p in enumerate(game.active_powerup):
+        x = border_left + padding + idx * (bar_width + padding)
+        ratio = 1 - (p.timer / p.duration)
+        filled_width = int(bar_width * ratio)
+        pygame.draw.rect(window, (60, 60, 60), pygame.Rect(x, y, bar_width, bar_height))
+        pygame.draw.rect(window, "chartreuse", pygame.Rect(x, y, filled_width, bar_height))
+        label = font.render(type(p).__name__, True, (240, 240, 240))
+        window.blit(label, label.get_frect(topleft=(x, y + bar_height + 3)))
+
 def draw_sprites():
     game.all_sprites.draw(window)
 
@@ -308,7 +328,7 @@ def handle_collisions():
                 game.cur_score += 1
                 if not game.active_powerup:
                     game.shield_side = "left"
-                if game.cur_score % 5 == 0:
+                if randint(1, 10) == 1:
                     spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
 
             # ball moving left - hitting face of player paddle
@@ -321,7 +341,7 @@ def handle_collisions():
                 game.cur_score += 1
                 if not game.active_powerup:
                     game.shield_side = "right"
-                if game.cur_score % 5 == 0:
+                if randint(1, 10) == 1:
                     spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
 
             # ball moving down - hitting top edge of a paddle
@@ -425,6 +445,7 @@ while game.app_running:
         game.state(dt)
         draw_sprites()
         draw_background()
+        draw_powerup_timers()
     elif game.current_state == "paused":
         draw_sprites()
         draw_background()

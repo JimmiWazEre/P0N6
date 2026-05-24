@@ -11,7 +11,7 @@ class PowerUp(pygame.sprite.Sprite):
     def __init__(self, pos, *groups):
         super().__init__(*groups)
         self.pos = pos
-        self.duration = 5000
+        self.duration = 10000
         self.timer = 0
         self.active = False
         self.mask = None
@@ -21,6 +21,11 @@ class PowerUp(pygame.sprite.Sprite):
             self.timer += dt * 1000
             if self.timer >= self.duration:
                 self.expire(game)
+        else:
+            self.timer += dt * 1000
+            if self.timer >= self.duration:
+                self.kill()
+                game.powerup = None
 
 class SlowBall(PowerUp):
     def __init__(self, pos, *groups):
@@ -129,15 +134,20 @@ class BigBall(PowerUp):
 # -------------------------------------------------------------
 
 def spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT):
-    offset = choice([-40, 40])
-    pos = (WINDOW_WIDTH // 2 + offset, randint(50, WINDOW_HEIGHT - 50))
     active_types = {type(p) for p in game.active_powerup}
     on_screen_types = {type(s) for s in game.powerup_sprites}
     excluded = active_types | on_screen_types
     available = [t for t in [SlowBall, BigPaddle, Shield, BigBall] if t not in excluded]
-    if available:
-        powerup_type = choice(available)
-        game.powerup = powerup_type(pos, game.all_sprites, game.powerup_sprites)
+    if not available:
+        return
+    for _ in range(10):
+        offset = randint(50, 80) * choice([-1, 1])
+        pos = (WINDOW_WIDTH // 2 + offset, randint(50, WINDOW_HEIGHT - 50))
+        candidate_rect = pygame.Rect(pos[0] - 20, pos[1] - 20, 40, 40)
+        if not any(candidate_rect.colliderect(s.rect) for s in game.powerup_sprites):
+            break
+    powerup_type = choice(available)
+    game.powerup = powerup_type(pos, game.all_sprites, game.powerup_sprites)
 
 def handle_powerup_collisions(i, game):
     if not i.active:
