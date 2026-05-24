@@ -35,8 +35,6 @@ from random import uniform, choice, randint
 from modules.leaderboard import load_scores, insert_high_score, display_leaderboard, enter_name
 from modules.powerup import spawn_powerups, handle_powerup_collisions
 
-BASE_DIR = dirname(abspath(__file__))
-
 # setup
 pygame.init()
 WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 720
@@ -105,7 +103,7 @@ class GameState():
         self.ball = None
         self.player = None
         self.ai = None
-        self.score = ScoreTracker(self.all_sprites)
+        self.score = ScoreTracker()
         self.paddle_len = 100
 
         # powerups
@@ -149,9 +147,9 @@ class GameState():
             self.score.update()
             self.ball.update(dt)
             handle_collisions()
-            for p in list(game.active_powerup):
+            for p in list(self.active_powerup):
                 p.update(game, dt)
-            game.powerup_sprites.update(game, dt)
+            self.powerup_sprites.update(game, dt)
 
         # game_over state active
         elif self.current_state == "game_over":
@@ -170,7 +168,7 @@ class PlayerPaddle(pygame.sprite.Sprite):
         self.image = pygame.Surface((20, game.paddle_len))
         self.image.fill("white")
         self.rect = self.image.get_frect(center=(100, WINDOW_HEIGHT / 2))
-        self.speed = 300
+        self.speed = 500
         self.velocity = None
         self.direction = None
         self.mask = pygame.mask.from_surface(self.image)
@@ -180,7 +178,6 @@ class PlayerPaddle(pygame.sprite.Sprite):
         self.direction = int(keys[pygame.K_DOWN]) - int(keys[pygame.K_UP])
         self.velocity = self.direction * self.speed
         self.rect.centery += self.velocity * dt
-        self.speed = 500
         self.velocity = None
         self.direction = None
         self.rect.clamp_ip(clamp)
@@ -207,9 +204,9 @@ class AiPaddle(pygame.sprite.Sprite):
 class Ball(pygame.sprite.Sprite):
     def __init__(self, *groups):
         super().__init__(*groups)
-        self.image = pygame.Surface((20, 20)) # create a blank 15x15 canvas
-        self.image.fill("white") # paint it white - this is the visible ball
-        self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)) # get a rect from the surface, centered on screen - this is the ball's position
+        self.image = pygame.Surface((20, 20))
+        self.image.fill("white")
+        self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2))
         self.speed = None
         self.speed_multiplier = 1
         self.velocity = None
@@ -221,42 +218,37 @@ class Ball(pygame.sprite.Sprite):
         self.velocity = pygame.Vector2(choice([-0.5, 0.5]), uniform(-0.5, 0.5)) * self.speed # random left or right, slight random vertical angle
 
     def update(self, dt):
-            if not self.velocity:
-                return
-            # move the ball
-            effective_multiplier = min(game.ball.speed_multiplier, 2.5)
-            self.rect.center += self.velocity * effective_multiplier * dt
+        if not self.velocity:
+            return
+        # move the ball
+        effective_multiplier = min(game.ball.speed_multiplier, 2.5)
+        self.rect.center += self.velocity * effective_multiplier * dt
 
-            # top and bottom wall bounces
-            if self.rect.bottom >= WINDOW_HEIGHT:
-                self.velocity.y *= -1
-                self.rect.bottom = WINDOW_HEIGHT
-            elif self.rect.top <= 0:
-                self.velocity.y *= -1
-                self.rect.top = 0
+        # top and bottom wall bounces
+        if self.rect.bottom >= WINDOW_HEIGHT:
+            self.velocity.y *= -1
+            self.rect.bottom = WINDOW_HEIGHT
+        elif self.rect.top <= 0:
+            self.velocity.y *= -1
+            self.rect.top = 0
 
-            # shield bounces
-            if game.shield_side == "right" and game.shield_x and self.velocity.x > 0 and self.rect.right >= game.shield_x:
-                self.velocity.x *= -1
-                self.rect.right = game.shield_x
-            elif game.shield_side == "left" and game.shield_x and self.velocity.x < 0 and self.rect.left <= game.shield_x + 10:
-                self.velocity.x *= -1
-                self.rect.left = game.shield_x + 10
+        # shield bounces
+        if game.shield_side == "right" and game.shield_x and self.velocity.x > 0 and self.rect.right >= game.shield_x:
+            self.velocity.x *= -1
+            self.rect.right = game.shield_x
+        elif game.shield_side == "left" and game.shield_x and self.velocity.x < 0 and self.rect.left <= game.shield_x + 10:
+            self.velocity.x *= -1
+            self.rect.left = game.shield_x + 10
 
-            # scoring boundary check
-            if game.ball.rect.left <= 0 or game.ball.rect.left >= WINDOW_WIDTH:
-                self.kill()
-                game.final_score = game.cur_score
-                game.cur_score = 0
-                game.current_state = "game_over"
-                insert_high_score(game)
+        # scoring boundary check
+        if game.ball.rect.left <= 0 or game.ball.rect.right >= WINDOW_WIDTH:
+            self.kill()
+            game.final_score = game.cur_score
+            game.cur_score = 0
+            game.current_state = "game_over"
+            insert_high_score(game)
 
-class ScoreTracker(pygame.sprite.Sprite):
-    def __init__(self, groups):
-        super().__init__(groups)
-        self.image = pygame.Surface((10, 30))
-        self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, 30))
-
+class ScoreTracker():
     def update(self):
         text_surf = font.render(f"SCORE: {game.cur_score}", True, (240, 240, 240))
         text_rect = text_surf.get_frect(midbottom=(WINDOW_WIDTH / 4, WINDOW_HEIGHT - 50))
@@ -318,29 +310,23 @@ def handle_collisions():
     collision_sprites = pygame.sprite.spritecollide(game.ball, game.paddle_sprites, False, pygame.sprite.collide_mask)
     if collision_sprites:
         for i in collision_sprites:
-            # ball moving right - hitting face of AI paddle
             if game.ball.velocity.x > 0:
                 game.ball.rect.right = i.rect.left
                 game.ball.velocity.x *= -1
                 game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
-                game.ball.speed_multiplier += 0.02
-                beep_sound.play()
-                game.cur_score += 1
                 if not game.active_powerup:
-                    game.shield_side = "left"
-                if randint(1, 10) == 1:
-                    spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
-
-            # ball moving left - hitting face of player paddle
+                    game.shield_side = "right"
             elif game.ball.velocity.x < 0:
                 game.ball.rect.left = i.rect.right
                 game.ball.velocity.x *= -1
                 game.ball.velocity.y = game.ball.velocity.y * 0.5 + (game.ball.rect.centery - i.rect.centery) * 5
+                if not game.active_powerup:
+                    game.shield_side = "left"
+
+            if game.ball.velocity.x != 0:
                 game.ball.speed_multiplier += 0.02
                 beep_sound.play()
                 game.cur_score += 1
-                if not game.active_powerup:
-                    game.shield_side = "right"
                 if randint(1, 10) == 1:
                     spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
 
