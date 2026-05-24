@@ -1,3 +1,31 @@
+"""
+
+=============================================================
+assets.py
+=============================================================
+Centralised asset loading for P0N6 FL1P!
+
+All images, fonts, and sounds are declared as module-level
+None values and populated by init_assets(), which must be
+called after pygame.init() in main.py.
+
+Powerup icon surfaces are generated programmatically via
+make_powerup_surf() rather than loaded from image files,
+keeping the retro blocky aesthetic consistent.
+
+powerup sounds by TeamAlphaGames 
+https://opengameart.org/content/8-bitnes-powerup-sound-effects
+
+-------------------------------------------------------------
+USAGE
+-------------------------------------------------------------
+Call init_assets() once after pygame.init(), then import
+the named assets you need:
+
+    from modules.assets import font, beep_sound
+
+"""
+
 import pygame
 from os.path import dirname, abspath, join
 

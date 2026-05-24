@@ -1,4 +1,58 @@
-# creation: powerup sounds by TeamAlphaGames https://opengameart.org/content/8-bitnes-powerup-sound-effects
+"""
+
+=============================================================
+powerup.py
+=============================================================
+Powerup system for P0N6 FL1P!
+
+-------------------------------------------------------------
+CLASSES
+-------------------------------------------------------------
+PowerUp             Base sprite class. Handles the shared
+                    duration timer for both uncollected
+                    (despawn after timeout) and active
+                    (expire after duration) states.
+
+SlowBall            Halves ball speed_multiplier for the
+                    effect duration.
+
+BigPaddle           Doubles paddle height for the effect
+                    duration. Rebuilds paddle sprites on
+                    apply and expire to reflect the size
+                    change.
+
+Shield              Places a temporary bounce boundary
+                    behind the paddle that last hit the
+                    ball. Draws a flickering blue line each
+                    frame while active.
+
+BigBall             Doubles the ball surface size and
+                    updates its rect and mask on apply.
+                    Restores original size on expire.
+
+-------------------------------------------------------------
+FUNCTIONS
+-------------------------------------------------------------
+spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
+    Spawns a random powerup icon on the centre line,
+    excluding any type already active or on screen.
+    Called from handle_collisions in main.py with a
+    1 in 10 chance per face paddle hit.
+
+handle_powerup_collisions(i, game)
+    Called when the ball collides with a powerup sprite.
+    Adds the powerup to game.active_powerup, kills the
+    icon sprite, and calls apply().
+
+-------------------------------------------------------------
+DEPENDENCIES
+-------------------------------------------------------------
+Assets imported locally inside __init__ and apply methods
+to avoid initialisation order issues with modules/assets.py.
+game is passed as a parameter throughout to avoid circular
+imports with main.py.
+
+"""
 
 import pygame
 from random import randint, choice
