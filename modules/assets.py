@@ -33,21 +33,31 @@ powerup_sound = None
 # init
 # -------------------------------------------------------------
 
+def make_powerup_surf(colour, label):
+    surf = pygame.Surface((60, 60), pygame.SRCALPHA)
+    pygame.draw.rect(surf, colour, pygame.Rect(0, 0, 60, 60), border_radius=6)
+    pygame.draw.rect(surf, "white", pygame.Rect(0, 0, 60, 60), 2, border_radius=6)
+    text = font.render(label, True, "white")
+    text_rect = text.get_frect(center=(30, 30))
+    surf.blit(text, text_rect)
+    return surf
+
 def init_assets():
     global splash_surf, big_ball_surf, slow_ball_surf, shield_surf, big_paddle_surf
     global font, font_large
     global one_sound, two_sound, three_sound, GO_sound
     global beep_sound, beeeeeep_sound, game_music, powerup_sound
 
-    # images
-    big_ball_surf = pygame.transform.scale2x(pygame.image.load(join(ASSETS_DIR, "images", "sized_BigBall.png")).convert_alpha())
-    slow_ball_surf = pygame.transform.scale2x(pygame.image.load(join(ASSETS_DIR, "images", "sized_SlowBall.png")).convert_alpha())
-    shield_surf = pygame.transform.scale2x(pygame.image.load(join(ASSETS_DIR, "images", "sized_Shield.png")).convert_alpha())
-    big_paddle_surf = pygame.transform.scale2x(pygame.image.load(join(ASSETS_DIR, "images", "sized_BigPaddle.png")).convert_alpha())
-
     # fonts
     font = pygame.font.Font(join(ASSETS_DIR, "PressStart2P-Regular.ttf"), 20)
     font_large = pygame.font.Font(join(ASSETS_DIR, "PressStart2P-Regular.ttf"), 60)
+
+    # images
+    splash_surf = pygame.image.load(join(ASSETS_DIR, "images", "splash.png")).convert()
+    big_ball_surf = make_powerup_surf((220, 50, 50), "BB")
+    slow_ball_surf = make_powerup_surf((50, 100, 220), "SB")
+    shield_surf = make_powerup_surf((220, 180, 50), "S")
+    big_paddle_surf = make_powerup_surf((50, 180, 80), "BP")
 
     # sounds
     one_sound = pygame.mixer.Sound(join(ASSETS_DIR, "audio", "1.wav"))
