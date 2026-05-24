@@ -7,19 +7,40 @@ Original Pong is boring. P0N6 FL1P! flips the objective:
 instead of beating a dumb AI, you work WITH it to keep the
 longest rally possible.
 
-The AI's limitations are something to compensate for. Set up 
-good returns, control your angles, and keep the rally alive 
+The AI's limitations are something to compensate for. Set up
+good returns, control your angles, and keep the rally alive
 as long as you can.
 
 The ball speeds up with every hit. How long can you last?
 
 -------------------------------------------------------------
+STRUCTURE
+-------------------------------------------------------------
+GameState           Central game state machine. Owns all
+                    sprite groups, scores, powerup state,
+                    and the state dispatcher that drives
+                    each frame.
+
+PlayerPaddle        Player-controlled paddle. Reads keyboard
+                    input each frame via get_pressed().
+
+AiPaddle            AI paddle. Tracks ball Y position with
+                    variable speed to avoid perfect play.
+
+Ball                The ball. Handles its own movement,
+                    wall bounces, shield bounces, and
+                    scoring boundary detection.
+
+ScoreTracker        Lightweight class that blits the current
+                    score to screen each frame.
+
+-------------------------------------------------------------
 CONTROLS
 -------------------------------------------------------------
-Arrow keys      Move paddle
-ESC             Pause / unpause
-R               Restart (game over screen)
-Q               Quit
+Arrow keys          Move paddle
+ESC                 Pause / unpause
+R                   Restart (game over screen)
+Q                   Quit
 
 -------------------------------------------------------------
 REFERENCES

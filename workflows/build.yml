@@ -1,0 +1,60 @@
+name: Build Executables
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable (Linux)
+        if: runner.os == 'Linux'
+        run: pyinstaller --onefile --windowed --name P0N6-FL1P-linux --add-data "images:images" --add-data "audio:audio" --add-data "modules:modules" --add-data "PressStart2P-Regular.ttf:." main.py
+
+      - name: Build executable (Windows)
+        if: runner.os == 'Windows'
+        run: pyinstaller --onefile --windowed --name P0N6-FL1P-windows --add-data "images;images" --add-data "audio;audio" --add-data "modules;modules" --add-data "PressStart2P-Regular.ttf;." main.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: P0N6-FL1P-${{ matrix.os }}
+          path: dist/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            P0N6-FL1P-ubuntu-latest/P0N6-FL1P-linux
+            P0N6-FL1P-windows-latest/P0N6-FL1P-windows.exe
