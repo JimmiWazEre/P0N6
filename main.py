@@ -29,12 +29,30 @@ pygame-ce docs      https://pyga.me/docs/
 """
 
 import pygame
-from os.path import dirname, abspath, join
-from random import uniform, choice
+from os.path import dirname, abspath
+from random import uniform, choice, randint
 
 from modules.leaderboard import load_scores, insert_high_score, display_leaderboard, enter_name
+from modules.powerup import spawn_powerups, handle_powerup_collisions
 
 BASE_DIR = dirname(abspath(__file__))
+
+# setup
+pygame.init()
+WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 720
+window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), vsync=1)
+pygame.display.set_caption("P0N6 FL1P!")
+
+# assets
+from modules.assets import init_assets
+init_assets()
+from modules.assets import (
+    splash_surf,
+    font, font_large,
+    one_sound, two_sound, three_sound, GO_sound,
+    beep_sound, game_music
+)
+game_music.play(loops=-1)
 
 # -------------------------------------------------------------
 # classes
@@ -56,6 +74,13 @@ class GameState():
         self.all_sprites = pygame.sprite.Group()
         self.paddle_sprites = pygame.sprite.Group()
         self.ball_sprites = pygame.sprite.Group()
+        self.powerup_sprites = pygame.sprite.Group()
+
+        # powerups
+        self.active_powerup = []
+        self.powerup = None
+        self.shield_side = None
+        self.shield_x = None
 
         # initialise game state
         self.reset()
@@ -66,6 +91,7 @@ class GameState():
         self.final_score = 0
         self.last_countdown = None
         self.point_start = pygame.time.get_ticks()
+        self.current_state = "point_start"
 
         # leaderboard
         self.entering_name = False
@@ -75,10 +101,32 @@ class GameState():
         self.all_sprites.empty()
         self.paddle_sprites.empty()
         self.ball_sprites.empty()
+        self.powerup_sprites.empty()
         self.ball = None
         self.player = None
         self.ai = None
         self.score = ScoreTracker(self.all_sprites)
+        self.paddle_len = 100
+
+        # powerups
+        self.active_powerup = []
+        self.powerup = None
+        self.shield_side = None
+        self.shield_x = None
+
+    def rebuild_paddles(self):
+        player_y = self.player.rect.centery if self.player else WINDOW_HEIGHT / 2
+        ai_y = self.ai.rect.centery if self.ai else WINDOW_HEIGHT / 2
+        if self.player:
+            self.player.kill()
+        if self.ai:
+            self.ai.kill()
+        self.player = PlayerPaddle(self, self.all_sprites, self.paddle_sprites)
+        self.ai = AiPaddle(self, self.all_sprites, self.paddle_sprites)
+        self.player.rect.centery = player_y
+        self.ai.rect.centery = ai_y
+        self.player.mask = pygame.mask.from_surface(self.player.image)
+        self.ai.mask = pygame.mask.from_surface(self.ai.image)
 
     def state(self, dt):
         # splash state active
@@ -101,6 +149,9 @@ class GameState():
             self.score.update()
             self.ball.update(dt)
             handle_collisions()
+            for p in list(game.active_powerup):
+                p.update(game, dt)
+            game.powerup_sprites.update(game, dt)
 
         # game_over state active
         elif self.current_state == "game_over":
@@ -114,9 +165,9 @@ class GameState():
 # sprite classes
 
 class PlayerPaddle(pygame.sprite.Sprite):
-    def __init__(self, *groups):
+    def __init__(self, game, *groups):
         super().__init__(*groups)
-        self.image = pygame.Surface((20, 100))
+        self.image = pygame.Surface((20, game.paddle_len))
         self.image.fill("white")
         self.rect = self.image.get_frect(center=(100, WINDOW_HEIGHT / 2))
         self.speed = 300
@@ -135,9 +186,9 @@ class PlayerPaddle(pygame.sprite.Sprite):
         self.rect.clamp_ip(clamp)
 
 class AiPaddle(pygame.sprite.Sprite):
-    def __init__(self, *groups):
+    def __init__(self, game, *groups):
         super().__init__(*groups)
-        self.image = pygame.Surface((20, 100))
+        self.image = pygame.Surface((20, game.paddle_len))
         self.image.fill("white")
         self.rect = self.image.get_frect(center=(WINDOW_WIDTH - 100, WINDOW_HEIGHT / 2))
         self.speed = 500
@@ -170,20 +221,35 @@ class Ball(pygame.sprite.Sprite):
         self.velocity = pygame.Vector2(choice([-0.5, 0.5]), uniform(-0.5, 0.5)) * self.speed # random left or right, slight random vertical angle
 
     def update(self, dt):
-        if self.rect.bottom >= WINDOW_HEIGHT:
-            self.velocity.y *= -1
-            self.rect.bottom = WINDOW_HEIGHT
-        elif self.rect.top <= 0:
-            self.velocity.y *= -1
-            self.rect.top = 0
-        self.rect.center += self.velocity  * game.ball.speed_multiplier * dt
+            if not self.velocity:
+                return
+            # move the ball
+            effective_multiplier = min(game.ball.speed_multiplier, 3.0)
+            self.rect.center += self.velocity * effective_multiplier * dt
 
-        if game.ball.rect.left <= 0 or game.ball.rect.left >= WINDOW_WIDTH:
-            self.kill()
-            game.final_score = game.cur_score
-            game.cur_score = 0
-            game.current_state = "game_over"
-            insert_high_score(game)
+            # top and bottom wall bounces
+            if self.rect.bottom >= WINDOW_HEIGHT:
+                self.velocity.y *= -1
+                self.rect.bottom = WINDOW_HEIGHT
+            elif self.rect.top <= 0:
+                self.velocity.y *= -1
+                self.rect.top = 0
+
+            # shield bounces
+            if game.shield_side == "right" and game.shield_x and self.velocity.x > 0 and self.rect.right >= game.shield_x:
+                self.velocity.x *= -1
+                self.rect.right = game.shield_x
+            elif game.shield_side == "left" and game.shield_x and self.velocity.x < 0 and self.rect.left <= game.shield_x + 10:
+                self.velocity.x *= -1
+                self.rect.left = game.shield_x + 10
+
+            # scoring boundary check
+            if game.ball.rect.left <= 0 or game.ball.rect.left >= WINDOW_WIDTH:
+                self.kill()
+                game.final_score = game.cur_score
+                game.cur_score = 0
+                game.current_state = "game_over"
+                insert_high_score(game)
 
 class ScoreTracker(pygame.sprite.Sprite):
     def __init__(self, groups):
@@ -217,10 +283,29 @@ def draw_background():
     dash_height = 20
     gap_height = 15
     x = WINDOW_WIDTH // 2 - 1
-    y = 0
+    y = 2
     while y < WINDOW_HEIGHT:
         pygame.draw.rect(window, "white", pygame.Rect(x, y, 2, dash_height))
         y += dash_height + gap_height
+
+def draw_powerup_timers():
+    if not game.active_powerup:
+        return
+    border_left = 25
+    border_right = WINDOW_WIDTH - 25
+    padding = 10
+    total_width = border_right - border_left - (padding * 2)
+    bar_width = (total_width - (padding * 3)) // 4
+    bar_height = 10
+    y = padding
+    for idx, p in enumerate(game.active_powerup):
+        x = border_left + padding + idx * (bar_width + padding)
+        ratio = 1 - (p.timer / p.duration)
+        filled_width = int(bar_width * ratio)
+        pygame.draw.rect(window, (60, 60, 60), pygame.Rect(x, y, bar_width, bar_height))
+        pygame.draw.rect(window, "chartreuse", pygame.Rect(x, y, filled_width, bar_height))
+        label = font.render(type(p).__name__, True, (240, 240, 240))
+        window.blit(label, label.get_frect(topleft=(x, y + bar_height + 3)))
 
 def draw_sprites():
     game.all_sprites.draw(window)
@@ -241,6 +326,10 @@ def handle_collisions():
                 game.ball.speed_multiplier += 0.05
                 beep_sound.play()
                 game.cur_score += 1
+                if not game.active_powerup:
+                    game.shield_side = "left"
+                if randint(1, 10) == 1:
+                    spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
 
             # ball moving left - hitting face of player paddle
             elif game.ball.velocity.x < 0:
@@ -250,6 +339,10 @@ def handle_collisions():
                 game.ball.speed_multiplier += 0.05
                 beep_sound.play()
                 game.cur_score += 1
+                if not game.active_powerup:
+                    game.shield_side = "right"
+                if randint(1, 10) == 1:
+                    spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
 
             # ball moving down - hitting top edge of a paddle
             elif game.ball.velocity.y > 0:
@@ -262,6 +355,11 @@ def handle_collisions():
                 game.ball.rect.top = i.rect.bottom
                 game.ball.velocity.y *= -1
                 beep_sound.play()
+
+    collision_sprites = pygame.sprite.spritecollide(game.ball, game.powerup_sprites, False, pygame.sprite.collide_mask)
+    for i in collision_sprites:
+        handle_powerup_collisions(i, game)
+
 
 def handle_input(event, dt):
     # splash state - any key pressed
@@ -306,8 +404,8 @@ def handle_point_start():
     # set up for in_play state
     else:
         game.ball = Ball(game.all_sprites, game.ball_sprites)
-        game.ai = AiPaddle(game.all_sprites, game.paddle_sprites)
-        game.player = PlayerPaddle(game.all_sprites, game.paddle_sprites)
+        game.ai = AiPaddle(game, game.all_sprites, game.paddle_sprites)
+        game.player = PlayerPaddle(game, game.all_sprites, game.paddle_sprites)
         game.ball.launch()
         game.current_state = "in_play"
 
@@ -315,49 +413,13 @@ def handle_point_start():
     # meaning all countdown entries have been passed - transition to in_play
 
 # -------------------------------------------------------------
-# setup
-# -------------------------------------------------------------
-
-pygame.init()
-
-# window
-WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 720
-window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), vsync = 1)
-pygame.display.set_caption("P0N6 FL1P!")
-
-# -------------------------------------------------------------
-# assets
-# -------------------------------------------------------------
-
-# images
-splash_surf = pygame.image.load(join(BASE_DIR, "images", "splash.png")).convert()
-
-# fonts
-font = pygame.font.Font(join(BASE_DIR, "PressStart2P-Regular.ttf"), 20)
-font_large = pygame.font.Font(join(BASE_DIR, "PressStart2P-Regular.ttf"), 60)
-
-# sounds
-one_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "1.wav"))
-one_sound.set_volume(0.5)
-two_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "2.wav"))
-two_sound.set_volume(0.5)
-three_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "3.wav"))
-three_sound.set_volume(0.5)
-GO_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "GO.wav"))
-GO_sound.set_volume(0.8)
-beep_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "beeep.ogg"))
-beep_sound.set_volume(0.1)
-beeeeeep_sound = pygame.mixer.Sound(join(BASE_DIR, "audio", "peeeeeep.ogg"))
-beeeeeep_sound.set_volume(0.1)
-game_music = pygame.mixer.Sound(join(BASE_DIR, "audio", "two_left_socks.ogg"))
-game_music.set_volume(0.2)
-game_music.play(loops=-1)
-
-# -------------------------------------------------------------
 # game running
 # -------------------------------------------------------------
 
 game = GameState()
+game.window = window
+game.WINDOW_WIDTH = WINDOW_WIDTH
+game.WINDOW_HEIGHT = WINDOW_HEIGHT
 clock = pygame.time.Clock()
 clamp = pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
 countdown = [(0, "3", three_sound, 1), (1000, "2", two_sound, 2), (2000, "1", one_sound, 3), (3000, "GO!", GO_sound, None)]
@@ -383,6 +445,7 @@ while game.app_running:
         game.state(dt)
         draw_sprites()
         draw_background()
+        draw_powerup_timers()
     elif game.current_state == "paused":
         draw_sprites()
         draw_background()
