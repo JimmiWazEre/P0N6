@@ -224,7 +224,7 @@ class Ball(pygame.sprite.Sprite):
             if not self.velocity:
                 return
             # move the ball
-            effective_multiplier = min(game.ball.speed_multiplier, 3.0)
+            effective_multiplier = min(game.ball.speed_multiplier, 2.5)
             self.rect.center += self.velocity * effective_multiplier * dt
 
             # top and bottom wall bounces
