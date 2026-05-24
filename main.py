@@ -77,7 +77,10 @@ class GameState():
         self.powerup_sprites = pygame.sprite.Group()
 
         # powerups
+        self.active_powerup = []
         self.powerup = None
+        self.shield_side = None
+        self.shield_x = None
 
         # initialise game state
         self.reset()
@@ -88,6 +91,7 @@ class GameState():
         self.final_score = 0
         self.last_countdown = None
         self.point_start = pygame.time.get_ticks()
+        self.current_state = "point_start"
 
         # leaderboard
         self.entering_name = False
@@ -102,15 +106,27 @@ class GameState():
         self.player = None
         self.ai = None
         self.score = ScoreTracker(self.all_sprites)
-        self.paddle_len = 20
+        self.paddle_len = 100
+
+        # powerups
+        self.active_powerup = []
+        self.powerup = None
+        self.shield_side = None
+        self.shield_x = None
 
     def rebuild_paddles(self):
+        player_y = self.player.rect.centery if self.player else WINDOW_HEIGHT / 2
+        ai_y = self.ai.rect.centery if self.ai else WINDOW_HEIGHT / 2
         if self.player:
             self.player.kill()
         if self.ai:
             self.ai.kill()
         self.player = PlayerPaddle(self, self.all_sprites, self.paddle_sprites)
         self.ai = AiPaddle(self, self.all_sprites, self.paddle_sprites)
+        self.player.rect.centery = player_y
+        self.ai.rect.centery = ai_y
+        self.player.mask = pygame.mask.from_surface(self.player.image)
+        self.ai.mask = pygame.mask.from_surface(self.ai.image)
 
     def state(self, dt):
         # splash state active
@@ -133,6 +149,8 @@ class GameState():
             self.score.update()
             self.ball.update(dt)
             handle_collisions()
+            for p in list(game.active_powerup):
+                p.update(game, dt)
 
         # game_over state active
         elif self.current_state == "game_over":
@@ -202,20 +220,35 @@ class Ball(pygame.sprite.Sprite):
         self.velocity = pygame.Vector2(choice([-0.5, 0.5]), uniform(-0.5, 0.5)) * self.speed # random left or right, slight random vertical angle
 
     def update(self, dt):
-        if self.rect.bottom >= WINDOW_HEIGHT:
-            self.velocity.y *= -1
-            self.rect.bottom = WINDOW_HEIGHT
-        elif self.rect.top <= 0:
-            self.velocity.y *= -1
-            self.rect.top = 0
-        self.rect.center += self.velocity  * game.ball.speed_multiplier * dt
+            if not self.velocity:
+                return
+            # move the ball
+            effective_multiplier = min(game.ball.speed_multiplier, 3.0)
+            self.rect.center += self.velocity * effective_multiplier * dt
 
-        if game.ball.rect.left <= 0 or game.ball.rect.left >= WINDOW_WIDTH:
-            self.kill()
-            game.final_score = game.cur_score
-            game.cur_score = 0
-            game.current_state = "game_over"
-            insert_high_score(game)
+            # top and bottom wall bounces
+            if self.rect.bottom >= WINDOW_HEIGHT:
+                self.velocity.y *= -1
+                self.rect.bottom = WINDOW_HEIGHT
+            elif self.rect.top <= 0:
+                self.velocity.y *= -1
+                self.rect.top = 0
+
+            # shield bounces
+            if game.shield_side == "right" and game.shield_x and self.velocity.x > 0 and self.rect.right >= game.shield_x:
+                self.velocity.x *= -1
+                self.rect.right = game.shield_x
+            elif game.shield_side == "left" and game.shield_x and self.velocity.x < 0 and self.rect.left <= game.shield_x + 10:
+                self.velocity.x *= -1
+                self.rect.left = game.shield_x + 10
+
+            # scoring boundary check
+            if game.ball.rect.left <= 0 or game.ball.rect.left >= WINDOW_WIDTH:
+                self.kill()
+                game.final_score = game.cur_score
+                game.cur_score = 0
+                game.current_state = "game_over"
+                insert_high_score(game)
 
 class ScoreTracker(pygame.sprite.Sprite):
     def __init__(self, groups):
@@ -249,7 +282,7 @@ def draw_background():
     dash_height = 20
     gap_height = 15
     x = WINDOW_WIDTH // 2 - 1
-    y = 0
+    y = 2
     while y < WINDOW_HEIGHT:
         pygame.draw.rect(window, "white", pygame.Rect(x, y, 2, dash_height))
         y += dash_height + gap_height
@@ -273,6 +306,8 @@ def handle_collisions():
                 game.ball.speed_multiplier += 0.05
                 beep_sound.play()
                 game.cur_score += 1
+                if not game.active_powerup:
+                    game.shield_side = "left"
                 if game.cur_score % 5 == 0:
                     spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
 
@@ -284,6 +319,8 @@ def handle_collisions():
                 game.ball.speed_multiplier += 0.05
                 beep_sound.play()
                 game.cur_score += 1
+                if not game.active_powerup:
+                    game.shield_side = "right"
                 if game.cur_score % 5 == 0:
                     spawn_powerups(game, WINDOW_WIDTH, WINDOW_HEIGHT)
 
@@ -298,6 +335,11 @@ def handle_collisions():
                 game.ball.rect.top = i.rect.bottom
                 game.ball.velocity.y *= -1
                 beep_sound.play()
+
+    collision_sprites = pygame.sprite.spritecollide(game.ball, game.powerup_sprites, False, pygame.sprite.collide_mask)
+    for i in collision_sprites:
+        handle_powerup_collisions(i, game)
+
 
 def handle_input(event, dt):
     # splash state - any key pressed
@@ -355,6 +397,9 @@ def handle_point_start():
 # -------------------------------------------------------------
 
 game = GameState()
+game.window = window
+game.WINDOW_WIDTH = WINDOW_WIDTH
+game.WINDOW_HEIGHT = WINDOW_HEIGHT
 clock = pygame.time.Clock()
 clamp = pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
 countdown = [(0, "3", three_sound, 1), (1000, "2", two_sound, 2), (2000, "1", one_sound, 3), (3000, "GO!", GO_sound, None)]

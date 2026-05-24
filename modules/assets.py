@@ -40,11 +40,10 @@ def init_assets():
     global beep_sound, beeeeeep_sound, game_music, powerup_sound
 
     # images
-    splash_surf = pygame.image.load(join(ASSETS_DIR, "images", "splash.png")).convert()
-    big_ball_surf = pygame.image.load(join(ASSETS_DIR, "images", "sized_BigBall.png")).convert_alpha()
-    slow_ball_surf = pygame.image.load(join(ASSETS_DIR, "images", "sized_SlowBall.png")).convert_alpha()
-    shield_surf = pygame.image.load(join(ASSETS_DIR, "images", "sized_Shield.png")).convert_alpha()
-    big_paddle_surf = pygame.image.load(join(ASSETS_DIR, "images", "sized_BigPaddle.png")).convert_alpha()
+    big_ball_surf = pygame.transform.scale2x(pygame.image.load(join(ASSETS_DIR, "images", "sized_BigBall.png")).convert_alpha())
+    slow_ball_surf = pygame.transform.scale2x(pygame.image.load(join(ASSETS_DIR, "images", "sized_SlowBall.png")).convert_alpha())
+    shield_surf = pygame.transform.scale2x(pygame.image.load(join(ASSETS_DIR, "images", "sized_Shield.png")).convert_alpha())
+    big_paddle_surf = pygame.transform.scale2x(pygame.image.load(join(ASSETS_DIR, "images", "sized_BigPaddle.png")).convert_alpha())
 
     # fonts
     font = pygame.font.Font(join(ASSETS_DIR, "PressStart2P-Regular.ttf"), 20)
